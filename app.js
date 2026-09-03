@@ -295,8 +295,7 @@
       syncCheckboxes();
       onEnabledChanged();
     });
-    const why = el('a', { className: 'why', href: '/why.html', textContent: 'Why practise this way' });
-    groupsEl.append(reset, el('p', { id: 'summary' }), why);
+    groupsEl.append(reset, el('p', { id: 'summary' }));
     updateSummary();
   }
 
