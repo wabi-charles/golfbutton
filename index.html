@@ -117,11 +117,20 @@
   .group-head h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0; }
   .group-head span button { background: none; border: none; color: var(--accent); font-size: .85rem; cursor: pointer; padding: 2px 6px; }
 
-  .modes { display: flex; flex-direction: column; gap: 5px; }
-  label.mode { display: flex; align-items: center; gap: 10px; background: var(--row); border-radius: 9px; padding: 8px 10px; cursor: pointer; }
-  label.mode input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; flex: none; }
-  label.mode b { font-size: .95rem; display: block; }
-  label.mode small { color: var(--muted); font-size: .78rem; display: block; line-height: 1.2; }
+  .mode-set { font-size: .56rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+              color: var(--muted); opacity: .8; margin: 8px 0 4px; }
+  .modegrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .modegrid label { position: relative; cursor: pointer; }
+  .modegrid input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .mface {
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    height: 38px; padding: 0 4px; border-radius: 9px; line-height: 1.15;
+    font-size: .8rem; font-weight: 600;
+    background: var(--row); color: var(--muted); border: 1px solid transparent;
+  }
+  .modegrid input:checked + .mface { background: var(--accent); color: var(--accent-ink); }
+  .modegrid input:focus-visible + .mface { border-color: var(--fg); }
+  .mode-note { color: var(--muted); font-size: .78rem; line-height: 1.3; margin: 8px 0 0; min-height: 2.6em; }
 
   .chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 6px; }
   label.chip { position: relative; cursor: pointer; }
@@ -231,12 +240,21 @@
   const DEFAULT_HCP = 15, MIN_HCP = 0, MAX_HCP = 36;
 
   const MODES = [
-    { id: 'random',   name: 'Random',                desc: 'Any club in play, every press. Repeats can happen.' },
-    { id: 'norepeat', name: 'No repeats',            desc: 'Work through every club in play before any comes up again.' },
-    { id: 'course',   name: 'Simulate full course',  desc: 'Blue tees, par 72, 6,400 yards. Every club is the one the shot calls for.' },
-    { id: 'par3',     name: 'Simulate par 3 course', desc: '18 one-shot holes, 90 to 210 yards, club matched to the number.' },
-    { id: 'round',    name: 'Simulate a real round',  desc: 'The same course with the misses in it: OB, trees, punch outs, bunkers. Scaled to your handicap.' },
+    { id: 'random',   set: 'Practice', short: 'Random',      button: 'Next Club',
+      desc: 'Any club in play, every press. Repeats can happen.' },
+    { id: 'norepeat', set: 'Practice', short: 'No repeats',  button: 'Next Club',
+      desc: 'Work through every club in play before any comes up again.' },
+    { id: 'distance', set: 'Practice', short: 'Yardages',    button: 'Next Yardage',
+      desc: 'A number instead of a club. Choosing what to hit is the drill.' },
+    { id: 'course',   set: 'Play',     short: 'Full course', button: 'Next Shot',
+      desc: 'Blue tees, par 72, 6,400 yards. Every club is the one the shot calls for.' },
+    { id: 'par3',     set: 'Play',     short: 'Par 3s',      button: 'Next Hole',
+      desc: '18 one-shot holes, 90 to 210 yards, club matched to the number.' },
+    { id: 'round',    set: 'Play',     short: 'Real round',  button: 'Next Shot',
+      desc: 'The same course with the misses in it: OB, trees, punch outs, bunkers. Scaled to your handicap.' },
   ];
+  const MODE_SETS = ['Practice', 'Play'];
+  function modeDef(id) { return MODES.find(m => m.id === id) || MODES[0]; }
   const DEFAULT_MODE = 'random';
 
   // Par 72 off the blue tees, 6,400 yards. Par 4s sit around 370 so the normal
@@ -388,6 +406,23 @@
       };
     }
 
+    if (mode === 'distance') {
+      let last = null;
+      return {
+        next(ids) {
+          const bag = ids.map(id => BY_ID[id]);
+          const lo = Math.min.apply(null, bag.map(yardsFor));
+          const hi = Math.max.apply(null, bag.map(yardsFor));
+          let y = null;
+          for (let i = 0; i < 8 && (y === null || (y === last && hi > lo)); i++) {
+            y = Math.round((lo + Math.random() * (hi - lo)) / 5) * 5;
+          }
+          last = y;
+          return { id: nearestClub(bag, y).id, label: y + ' yds', card: null, lines: [] };
+        },
+      };
+    }
+
     if (mode === 'round') {
       let hole = -1, remaining = 0, strokes = 0, holeYards = 0, lie = 'tee', note = '', needNewHole = true;
       let troubleThisHole = 0;
@@ -530,6 +565,12 @@
       contextEl.append(el('div', { className: 'shot', textContent: line }));
     });
   }
+  function updateButtonLabel() {
+    const def = modeDef(mode);
+    bigBtn.textContent = def.button;
+    bigBtn.setAttribute('aria-label', def.button);
+  }
+
   function updateMainState() {
     const empty = enabled.size === 0;
     bigBtn.disabled = empty;
@@ -548,7 +589,7 @@
     if (enabled.size === 0) { updateMainState(); return; }
     const shot = picker.next([...enabled]);
     track('press/' + mode);
-    setReadout(BY_ID[shot.id].label, { card: shot.card, lines: shot.lines });
+    setReadout(shot.label || BY_ID[shot.id].label, { card: shot.card, lines: shot.lines });
     if (navigator.vibrate) { try { navigator.vibrate(30); } catch (e) {} }
     bigBtn.classList.add('pressed');
     setTimeout(() => bigBtn.classList.remove('pressed'), 90);
@@ -566,18 +607,24 @@
     groupsEl.innerHTML = '';
 
     const modeWrap = el('div', { className: 'group' });
-    modeWrap.append(el('div', { className: 'group-head' }, el('h2', { textContent: 'Next club' })));
-    const modes = el('div', { className: 'modes' });
-    for (const m of MODES) {
-      const input = el('input', { type: 'radio', name: 'mode', value: m.id, checked: mode === m.id });
-      input.addEventListener('change', () => {
-        if (!input.checked) return;
-        mode = m.id; saveMode(mode); settingsDirty = true;
-      });
-      modes.append(el('label', { className: 'mode' }, input,
-        el('div', {}, el('b', { textContent: m.name }), el('small', { textContent: m.desc }))));
+    modeWrap.append(el('div', { className: 'group-head' }, el('h2', { textContent: 'Mode' })));
+    const note = el('p', { className: 'mode-note' });
+    for (const set of MODE_SETS) {
+      modeWrap.append(el('div', { className: 'mode-set', textContent: set }));
+      const grid = el('div', { className: 'modegrid' });
+      for (const m of MODES.filter(x => x.set === set)) {
+        const input = el('input', { type: 'radio', name: 'mode', value: m.id, checked: mode === m.id });
+        input.addEventListener('change', () => {
+          if (!input.checked) return;
+          mode = m.id; saveMode(mode); settingsDirty = true;
+          note.textContent = m.desc;
+        });
+        grid.append(el('label', {}, input, el('span', { className: 'mface', textContent: m.short })));
+      }
+      modeWrap.append(grid);
     }
-    modeWrap.append(modes);
+    note.textContent = modeDef(mode).desc;
+    modeWrap.append(note);
     groupsEl.append(modeWrap);
 
     for (const group of GROUPS) {
@@ -710,12 +757,14 @@
     settingsEl.hidden = true;
     if (settingsDirty) {
       picker = makePicker(mode);
+      updateButtonLabel();
       if (enabled.size > 0) setReadout('Press for a club', { placeholder: true });
     }
     updateMainState();
   });
 
   renderSettings();
+  updateButtonLabel();
   updateMainState();
 })();
 </script>
