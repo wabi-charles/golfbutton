@@ -1,10 +1,12 @@
 // Golf Button service worker.
 // The page is one file, so offline is cheap: cache the shell, keep it fresh.
 // Bump CACHE when the shell changes so old entries are dropped.
-const CACHE = 'golf-button-v1';
+const CACHE = 'golf-button-v2';
 const SHELL = [
   '/',
   '/index.html',
+  '/logic.js',
+  '/app.js',
   '/manifest.webmanifest',
   '/icon-192.png',
   '/icon-512.png',

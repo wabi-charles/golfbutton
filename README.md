@@ -36,3 +36,19 @@ reaches you on the next load that has a connection.
 
 The screen stays awake while the app is open, and tapping anywhere on the
 main screen advances, not just the button.
+
+## Layout
+
+- `index.html` - markup and styles
+- `logic.js` - the golf: clubs, yardages, the course, the shot simulation. No DOM.
+- `app.js` - storage, settings UI, event wiring
+- `sw.js`, `manifest.webmanifest`, `icon-*.png` - installable, offline
+- `test.js` - run with `node test.js`
+
+`logic.js` holds no browser references, so the yardage model and the round
+simulation can be exercised directly. Cases marked "regression" in the tests
+are bugs that actually shipped; leave them in.
+
+Changing anything in the cached shell means bumping `CACHE` in `sw.js`, or
+installed users keep the old copy.
+
