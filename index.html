@@ -400,9 +400,18 @@
     if (empty) setReadout('Pick some clubs in settings', [], true);
   }
 
+  function track(path) {
+    try {
+      if (window.goatcounter && window.goatcounter.count) {
+        window.goatcounter.count({ path: path, title: 'Button press', event: true });
+      }
+    } catch (e) {}
+  }
+
   bigBtn.addEventListener('click', () => {
     if (enabled.size === 0) { updateMainState(); return; }
     const shot = picker.next([...enabled]);
+    track('press/' + mode);
     setReadout(BY_ID[shot.id].label, shot.lines, false);
     if (navigator.vibrate) { try { navigator.vibrate(30); } catch (e) {} }
     bigBtn.classList.add('pressed');
@@ -536,5 +545,9 @@
   updateMainState();
 })();
 </script>
+
+<!-- GoatCounter: privacy friendly, no cookies. Skips localhost automatically. -->
+<script data-goatcounter="https://golfbutton.goatcounter.com/count"
+        async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>
