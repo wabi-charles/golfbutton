@@ -39,7 +39,21 @@
     padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
   }
 
-  #readout { display: flex; flex-direction: column; align-items: center; min-height: 7rem; justify-content: center; }
+  #readout { display: flex; flex-direction: column; align-items: center; gap: 14px; min-height: 9rem; justify-content: center; }
+
+  /* Scorecard strip: the hole you are standing on, printed like a card. */
+  #card {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    width: min(76vw, 268px);
+    background: var(--accent); color: var(--accent-ink);
+    border-radius: 3px; overflow: hidden;
+    box-shadow: 0 2px 12px rgba(0,0,0,.4);
+  }
+  #card[hidden] { display: none; }
+  #card .cell { padding: 5px 4px 7px; text-align: center; }
+  #card .cell + .cell { border-left: 1px solid rgba(18,41,27,.20); }
+  #card .k { display: block; font-size: .56rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; opacity: .6; }
+  #card .v { display: block; font-size: 1.4rem; font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums; }
   #club {
     font-size: clamp(2.4rem, 12vw, 5rem);
     font-weight: 800; line-height: 1.05; text-align: center;
@@ -47,10 +61,9 @@
   }
   #club.placeholder { color: var(--muted); font-weight: 600; font-size: clamp(1.4rem, 6vw, 2.2rem); }
   #context {
-    margin-top: 10px; display: flex; flex-direction: column; align-items: center; gap: 3px;
-    text-align: center; min-height: 1.4em; font-variant-numeric: tabular-nums;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    text-align: center; font-variant-numeric: tabular-nums;
   }
-  #context .hole { color: var(--muted); font-size: clamp(.9rem, 3.9vw, 1.15rem); font-weight: 600; }
   #context .shot { color: var(--fg); font-size: clamp(1.05rem, 4.6vw, 1.4rem); font-weight: 700; }
 
   #big {
@@ -124,13 +137,14 @@
   label.chip input:checked + .face .yds { opacity: .75; }
   label.chip input:focus-visible + .face { border-color: var(--fg); }
 
+  .dist + .dist { margin-top: 6px; }
   .dist { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--row); border-radius: 9px; padding: 8px 10px; }
   .dist .lbl { font-size: .95rem; }
   .dist .lbl small { display: block; color: var(--muted); font-size: .75rem; line-height: 1.2; }
   .dist .ctl { display: flex; align-items: center; gap: 6px; flex: none; }
   .dist .ctl button { width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--fg); font-size: 1.15rem; line-height: 1; cursor: pointer; font-family: inherit; }
   .dist .ctl button:active { background: var(--line); }
-  #seven { width: 62px; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 4px; text-align: center; font-size: 1rem; font-family: inherit; font-variant-numeric: tabular-nums; }
+  .dist input { width: 62px; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 4px; text-align: center; font-size: 1rem; font-family: inherit; font-variant-numeric: tabular-nums; }
 
   #reset { width: 100%; margin: 12px 0 0; padding: 10px; border-radius: 9px; background: transparent; color: var(--fg); border: 1px solid var(--line); font-size: .95rem; cursor: pointer; font-family: inherit; }
   #summary { color: var(--muted); font-size: .85rem; margin: 8px 0 0; text-align: center; }
@@ -140,6 +154,7 @@
 
 <main>
   <div id="readout">
+    <div id="card" hidden></div>
     <div id="club" class="placeholder" aria-live="polite">Press for a club</div>
     <div id="context"></div>
   </div>
@@ -162,6 +177,7 @@
   const STORAGE_KEY = 'golfButton.enabled';
   const MODE_KEY = 'golfButton.mode';
   const SEVEN_KEY = 'golfButton.sevenIron';
+  const HCP_KEY = 'golfButton.handicap';
 
   // ratio: carry distance as a multiple of the player's 7 iron.
   const CLUBS = [
@@ -212,23 +228,26 @@
   const REFERENCE_SEVEN = 150;   // the yardages below are drawn for a 150 yard 7 iron
   const DEFAULT_SEVEN = 150;
   const MIN_SEVEN = 70, MAX_SEVEN = 220;
+  const DEFAULT_HCP = 15, MIN_HCP = 0, MAX_HCP = 36;
 
   const MODES = [
     { id: 'random',   name: 'Random',                desc: 'Any club in play, every press. Repeats can happen.' },
     { id: 'norepeat', name: 'No repeats',            desc: 'Work through every club in play before any comes up again.' },
-    { id: 'course',   name: 'Simulate full course',  desc: 'Play 18 holes by the yardage. Each club is the one the shot calls for.' },
+    { id: 'course',   name: 'Simulate full course',  desc: 'Blue tees, par 72, 6,400 yards. Every club is the one the shot calls for.' },
     { id: 'par3',     name: 'Simulate par 3 course', desc: '18 one-shot holes, 90 to 210 yards, club matched to the number.' },
+    { id: 'round',    name: 'Simulate a real round',  desc: 'The same course with the misses in it: OB, trees, punch outs, bunkers. Scaled to your handicap.' },
   ];
   const DEFAULT_MODE = 'random';
 
-  // A real par 72 routing, 6,750 yards off a regular men's tee.
+  // Par 72 off the blue tees, 6,400 yards. Par 4s sit around 370 so the normal
+  // second shot is a wedge through a 9 iron; 8 and 16 are the long exceptions.
   const COURSE = [
-    { par: 4, yards: 385 }, { par: 5, yards: 520 }, { par: 3, yards: 165 },
-    { par: 4, yards: 410 }, { par: 4, yards: 360 }, { par: 3, yards: 190 },
-    { par: 5, yards: 545 }, { par: 4, yards: 425 }, { par: 4, yards: 400 },
-    { par: 4, yards: 370 }, { par: 3, yards: 145 }, { par: 5, yards: 500 },
-    { par: 4, yards: 440 }, { par: 4, yards: 395 }, { par: 5, yards: 560 },
-    { par: 3, yards: 175 }, { par: 4, yards: 415 }, { par: 4, yards: 350 },
+    { par: 4, yards: 375 }, { par: 5, yards: 505 }, { par: 3, yards: 155 },
+    { par: 4, yards: 400 }, { par: 4, yards: 350 }, { par: 3, yards: 175 },
+    { par: 5, yards: 535 }, { par: 4, yards: 445 }, { par: 4, yards: 365 },
+    { par: 4, yards: 355 }, { par: 3, yards: 140 }, { par: 5, yards: 490 },
+    { par: 4, yards: 385 }, { par: 4, yards: 300 }, { par: 5, yards: 520 },
+    { par: 3, yards: 195 }, { par: 4, yards: 370 }, { par: 4, yards: 340 },
   ];
 
   // An 18 hole par 3 course.
@@ -262,9 +281,18 @@
   }
   function saveSeven(n) { try { localStorage.setItem(SEVEN_KEY, String(n)); } catch (e) {} }
   function clampSeven(n) { return Math.min(MAX_SEVEN, Math.max(MIN_SEVEN, Math.round(n))); }
+  function loadHandicap() {
+    try {
+      const n = parseInt(localStorage.getItem(HCP_KEY), 10);
+      return clampHcp(isNaN(n) ? DEFAULT_HCP : n);
+    } catch (e) { return DEFAULT_HCP; }
+  }
+  function saveHandicap(n) { try { localStorage.setItem(HCP_KEY, String(n)); } catch (e) {} }
+  function clampHcp(n) { return Math.min(MAX_HCP, Math.max(MIN_HCP, Math.round(n))); }
 
   // ---- distances ----
   let sevenIron = loadSeven();
+  let handicap = loadHandicap();
   function yardsFor(club) { return Math.round(club.ratio * sevenIron); }
   function courseScale() { return sevenIron / REFERENCE_SEVEN; }
   function scaleYards(y) { return Math.max(40, Math.round(y * courseScale() / 5) * 5); }
@@ -284,6 +312,9 @@
   }
   function longestClub(bag) {
     return bag.reduce((a, c) => (yardsFor(c) > yardsFor(a) ? c : a), bag[0]);
+  }
+  function shortestClub(bag) {
+    return bag.reduce((a, c) => (yardsFor(c) < yardsFor(a) ? c : a), bag[0]);
   }
   function teeClub(bag, holeYards) {
     const driver = bag.find(c => c.kind === 'driver');
@@ -305,7 +336,6 @@
     }
     return a;
   }
-  function holeLine(n, par, yards) { return 'Hole ' + n + ' · Par ' + par + ' · ' + yards + ' yds'; }
 
   // ---- pickers: next(enabledIds) -> { id, lines: [hole, shot] } ----
   function makePicker(mode) {
@@ -319,7 +349,7 @@
             if (deck.length > 1 && deck[deck.length - 1] === last) deck.unshift(deck.pop());
           }
           last = deck.pop();
-          return { id: last, lines: ['Club ' + (total - deck.length) + ' of ' + total] };
+          return { id: last, card: null, lines: ['Club ' + (total - deck.length) + ' of ' + total] };
         },
       };
     }
@@ -343,19 +373,109 @@
           const club = (shot === 1 && par > 3)
             ? teeClub(bag, holeYards)
             : nearestClub(offTheDeck(bag), remaining);
-          const lines = [
-            holeLine(hole + 1, par, holeYards),
-            shot === 1
-              ? 'Shot 1 · Tee shot'
-              : 'Shot ' + shot + ' · ' + remaining + ' yds in',
-          ];
+          const card = { hole: hole + 1, par: par, yards: holeYards };
+          const lines = [shot === 1
+            ? 'Shot 1 · Tee shot'
+            : 'Shot ' + shot + ' · ' + remaining + ' yds in'];
 
           const carry = yardsFor(club) * (0.88 + Math.random() * 0.18);   // 88% to 106% of the number
           remaining = Math.max(0, Math.round(remaining - carry));
           const greenEdge = Math.max(15, Math.round(25 * courseScale()));
           if (remaining <= greenEdge || remaining < shortest * 0.4 || shot >= 8) needNewHole = true;
 
-          return { id: club.id, lines: lines };
+          return { id: club.id, card: card, lines: lines };
+        },
+      };
+    }
+
+    if (mode === 'round') {
+      let hole = -1, remaining = 0, strokes = 0, holeYards = 0, lie = 'tee', note = '', needNewHole = true;
+      let troubleThisHole = 0;
+      return {
+        next(ids) {
+          const bag = ids.map(id => BY_ID[id]);
+          const h = handicap;
+          if (needNewHole) {
+            hole = (hole + 1) % COURSE.length;
+            holeYards = scaleYards(COURSE[hole].yards);
+            remaining = holeYards; strokes = 0; lie = 'tee'; note = ''; needNewHole = false;
+            troubleThisHole = 0;
+          }
+          const par = COURSE[hole].par;
+          const card = { hole: hole + 1, par: par, yards: holeYards };
+          strokes += 1;
+          const shotNo = strokes;   // a penalty counts against the next swing, not this one
+          const greenEdge = Math.max(15, Math.round(25 * courseScale()));
+
+          // Anything inside the surrounds is putting, so the hole ends there.
+          function settle(farLie) {
+            if (remaining > greenEdge) { lie = farLie; return; }
+            const pMissGreen = Math.min(0.72, 0.20 + h * 0.022);
+            if (Math.random() < pMissGreen) {
+              lie = (Math.random() < 0.4 ? 'bunker' : 'chip');
+              // You are off the green, not on top of the hole: keep a real number to play.
+              remaining = Math.max(4, Math.round((6 + Math.random() * 22) * courseScale()));
+            } else {
+              needNewHole = true;
+            }
+          }
+
+          let club, situation;
+
+          const shotFrom = remaining;   // every line reports the distance you are playing from
+
+          if (lie === 'trees') {
+            // A punch out is a low club run down the hole, not a lob wedge: 80 to 140
+            // yards of advance unless the pin is closer than that.
+            const punchTo = Math.min(Math.round(shotFrom * 0.7),
+                                     Math.round((80 + Math.random() * 60) * courseScale()));
+            club = nearestClub(bag, Math.max(30, punchTo));
+            situation = 'Punch out · ' + shotFrom + ' yds in';
+            remaining = Math.max(0, Math.round(shotFrom - Math.min(punchTo, yardsFor(club))));
+            settle('fairway');
+          } else if (lie === 'bunker' || lie === 'chip') {
+            club = shortestClub(bag);
+            situation = (lie === 'bunker' ? 'Bunker' : 'Chip on') + ' · ' + shotFrom + ' yds';
+            remaining = 0;
+            needNewHole = true;
+          } else {
+            const onTee = (lie === 'tee');
+            club = (onTee && par > 3) ? teeClub(bag, holeYards) : nearestClub(bag, shotFrom);
+            const dist = onTee ? shotFrom + ' yds' : shotFrom + ' yds in';
+            situation = note ? note + ' · ' + dist : (onTee ? 'Tee shot' : dist);
+            note = '';
+
+            // Trouble is mostly a driver problem, and one bad break per hole is
+            // plenty; without that cap the misses compound into scores nobody makes.
+            const swinging = onTee && par > 3;
+            const allowance = h >= 25 ? 2 : 1;
+            const inPlay = troubleThisHole < allowance;
+            const pPenalty = !inPlay ? 0
+              : swinging ? Math.min(0.13, 0.004 + h * 0.005) : Math.min(0.05, 0.002 + h * 0.0012);
+            const pTrees = !inPlay ? 0
+              : swinging ? Math.min(0.20, 0.015 + h * 0.005) : Math.min(0.04, h * 0.0008);
+
+            const low = 0.94 - h * 0.006, spread = 0.12 + h * 0.004;
+            const carry = yardsFor(club) * (low + Math.random() * spread);
+            const roll = Math.random();
+
+            if (roll < pPenalty) {
+              // Stroke and distance off the tee, or a drop at the hazard: same spot, one more shot.
+              note = onTee ? 'After OB' : 'After a drop';
+              strokes += 1;
+              troubleThisHole += 1;
+            } else if (roll < pPenalty + pTrees) {
+              remaining = Math.max(0, Math.round(remaining - carry * 0.75));
+              troubleThisHole += 1;
+              settle('trees');
+            } else {
+              remaining = Math.max(0, Math.round(remaining - carry));
+              settle('fairway');
+            }
+          }
+
+          if (strokes >= 10) needNewHole = true;
+          return { id: club.id, card: card, lines: ['Shot ' + shotNo + ' · ' + situation] };
         },
       };
     }
@@ -367,12 +487,12 @@
           hole = (hole + 1) % PAR3_COURSE.length;
           const yards = scaleYards(PAR3_COURSE[hole]);
           const club = nearestClub(ids.map(id => BY_ID[id]), yards);
-          return { id: club.id, lines: [holeLine(hole + 1, 3, yards), 'Shot 1'] };
+          return { id: club.id, card: { hole: hole + 1, par: 3, yards: yards }, lines: [] };
         },
       };
     }
 
-    return { next(ids) { return { id: randomOf(ids), lines: [] }; } };
+    return { next(ids) { return { id: randomOf(ids), card: null, lines: [] }; } };
   }
 
   // ---- state ----
@@ -381,6 +501,7 @@
   let picker = makePicker(mode);
   let settingsDirty = false;
 
+  const cardEl = document.getElementById('card');
   const clubEl = document.getElementById('club');
   const contextEl = document.getElementById('context');
   const bigBtn = document.getElementById('big');
@@ -389,18 +510,30 @@
   const closeBtn = document.getElementById('close');
   const groupsEl = document.getElementById('groups');
 
-  function setReadout(text, lines, placeholder) {
+  function setReadout(text, opts) {
+    opts = opts || {};
     clubEl.textContent = text;
-    clubEl.classList.toggle('placeholder', !!placeholder);
+    clubEl.classList.toggle('placeholder', !!opts.placeholder);
+
+    cardEl.textContent = '';
+    cardEl.hidden = !opts.card;
+    if (opts.card) {
+      [['Hole', opts.card.hole], ['Par', opts.card.par], ['Yards', opts.card.yards]].forEach(pair => {
+        cardEl.append(el('div', { className: 'cell' },
+          el('span', { className: 'k', textContent: pair[0] }),
+          el('span', { className: 'v', textContent: String(pair[1]) })));
+      });
+    }
+
     contextEl.textContent = '';
-    (lines || []).filter(Boolean).forEach((line, i) => {
-      contextEl.append(el('div', { className: i === 0 ? 'hole' : 'shot', textContent: line }));
+    (opts.lines || []).filter(Boolean).forEach(line => {
+      contextEl.append(el('div', { className: 'shot', textContent: line }));
     });
   }
   function updateMainState() {
     const empty = enabled.size === 0;
     bigBtn.disabled = empty;
-    if (empty) setReadout('Pick some clubs in settings', [], true);
+    if (empty) setReadout('Pick some clubs in settings', { placeholder: true });
   }
 
   function track(path) {
@@ -415,7 +548,7 @@
     if (enabled.size === 0) { updateMainState(); return; }
     const shot = picker.next([...enabled]);
     track('press/' + mode);
-    setReadout(BY_ID[shot.id].label, shot.lines, false);
+    setReadout(BY_ID[shot.id].label, { card: shot.card, lines: shot.lines });
     if (navigator.vibrate) { try { navigator.vibrate(30); } catch (e) {} }
     bigBtn.classList.add('pressed');
     setTimeout(() => bigBtn.classList.remove('pressed'), 90);
@@ -482,29 +615,67 @@
       groupsEl.append(wrap);
     }
 
-    // Distance tuning, at the bottom.
+    // Your game, at the bottom.
     const distWrap = el('div', { className: 'group' });
-    distWrap.append(el('div', { className: 'group-head' }, el('h2', { textContent: 'Distances' })));
-    const minus = el('button', { type: 'button', textContent: '−', ariaLabel: 'Less' });
-    const plus = el('button', { type: 'button', textContent: '+', ariaLabel: 'More' });
-    const input = el('input', { id: 'seven', type: 'number', inputMode: 'numeric', value: String(sevenIron),
-                                min: String(MIN_SEVEN), max: String(MAX_SEVEN), step: '5' });
-    const label = el('div', { className: 'lbl' }, el('span', { textContent: '7 iron carry' }),
-      el('small', { textContent: 'Every other club and the course scale from this.' }));
-    distWrap.append(el('div', { className: 'dist' }, label,
-      el('div', { className: 'ctl' }, minus, input, el('span', { className: 'yds', textContent: 'yds' }), plus)));
+    distWrap.append(el('div', { className: 'group-head' }, el('h2', { textContent: 'Your game' })));
 
-    function applySeven(n) {
-      const v = clampSeven(n);
-      sevenIron = v;
-      input.value = String(v);
-      saveSeven(v);
-      refreshYardages();
-      settingsDirty = true;
+    function stepper(opts) {
+      const minus = el('button', { type: 'button', textContent: '−', ariaLabel: 'Less ' + opts.name });
+      const plus = el('button', { type: 'button', textContent: '+', ariaLabel: 'More ' + opts.name });
+      const input = el('input', { type: 'text', inputMode: 'numeric', pattern: '[0-9]*',
+                                  autocomplete: 'off', value: String(opts.value) });
+      input.setAttribute('aria-label', opts.name);
+      input.id = opts.id;
+      const row = el('div', { className: 'dist' },
+        el('div', { className: 'lbl' }, el('span', { textContent: opts.name }),
+           el('small', { textContent: opts.hint })),
+        el('div', { className: 'ctl' }, minus, input,
+           el('span', { className: 'yds', textContent: opts.unit }), plus));
+      function apply(n) {
+        const v = opts.clamp(n);
+        input.value = String(v);
+        opts.onChange(v);
+        settingsDirty = true;
+      }
+      minus.addEventListener('click', () => apply(opts.get() - opts.step));
+      plus.addEventListener('click', () => apply(opts.get() + opts.step));
+      input.addEventListener('change', () => {
+        const raw = input.value.trim();
+        if (raw === '') { input.value = String(opts.get()); return; }   // left alone
+        const parsed = parseInt(raw, 10);   // 0 is a real handicap, so no falsy fallback
+        apply(Number.isNaN(parsed) ? opts.fallback : parsed);
+      });
+      // Tapping the field used to drop a cursor after the digits, so typing appended:
+      // 15 became 1536 and clamped to the maximum. Empty it on focus and keep the old
+      // number as the placeholder, so whatever you type is the whole value.
+      input.addEventListener('focus', () => {
+        input.placeholder = input.value;
+        input.value = '';
+      });
+      input.addEventListener('blur', () => {
+        if (input.value.trim() === '') input.value = String(opts.get());
+      });
+      // And never let a scroll over a focused field spin the number.
+      input.addEventListener('wheel', () => input.blur(), { passive: true });
+      return row;
     }
-    minus.addEventListener('click', () => applySeven(sevenIron - 5));
-    plus.addEventListener('click', () => applySeven(sevenIron + 5));
-    input.addEventListener('change', () => applySeven(parseInt(input.value, 10) || DEFAULT_SEVEN));
+
+    distWrap.append(stepper({
+      id: 'seven', name: '7 iron carry', unit: 'yds',
+      hint: 'Every other club and the course scale from this.',
+      value: sevenIron, min: MIN_SEVEN, max: MAX_SEVEN, step: 5,
+      fallback: DEFAULT_SEVEN, clamp: clampSeven, get: () => sevenIron,
+      onChange: v => { sevenIron = v; saveSeven(v); refreshYardages(); },
+    }));
+
+    distWrap.append(stepper({
+      id: 'hcp', name: 'Handicap', unit: '',
+      hint: 'Used by the real round mode to decide how often you miss.',
+      value: handicap, min: MIN_HCP, max: MAX_HCP, step: 1,
+      fallback: DEFAULT_HCP, clamp: clampHcp, get: () => handicap,
+      onChange: v => { handicap = v; saveHandicap(v); },
+    }));
+
     groupsEl.append(distWrap);
 
     const reset = el('button', { id: 'reset', type: 'button', textContent: 'Reset to default bag' });
@@ -539,7 +710,7 @@
     settingsEl.hidden = true;
     if (settingsDirty) {
       picker = makePicker(mode);
-      if (enabled.size > 0) setReadout('Press for a club', [], true);
+      if (enabled.size > 0) setReadout('Press for a club', { placeholder: true });
     }
     updateMainState();
   });
