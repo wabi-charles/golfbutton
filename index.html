@@ -6,19 +6,22 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#111111">
+<meta name="theme-color" content="#10231a">
 <title>Club Picker</title>
 <style>
   :root {
-    --bg: #111;
-    --fg: #fff;
-    --muted: #9a9a9a;
+    /* Twilight fairway: deep turf ground, scorecard cream ink, flag red button. */
+    --bg: #10231a;
+    --sheet: #142b1d;
+    --row: #1d3b28;
+    --line: #2b5138;
+    --fg: #f4f0e4;
+    --muted: #8ea795;
     --red: #e0202a;
     --red-dark: #9c0f17;
-    --red-shadow: #6b0a10;
-    --sheet: #1c1c1e;
-    --row: #2a2a2d;
-    --accent: #4cd964;
+    --red-shadow: #61080e;
+    --accent: #efe6cf;
+    --accent-ink: #12291b;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
@@ -69,17 +72,17 @@
   }
   #big:disabled {
     filter: grayscale(.8) brightness(.5); cursor: not-allowed;
-    transform: none; box-shadow: 0 14px 0 #222;
+    transform: none; box-shadow: 0 14px 0 var(--line);
   }
 
   #gear {
     position: fixed; top: max(12px, env(safe-area-inset-top)); right: 12px;
     width: 48px; height: 48px; border-radius: 50%;
-    background: rgba(255,255,255,.08); color: var(--fg); border: none;
+    background: rgba(244,240,228,.10); color: var(--fg); border: none;
     font-size: 26px; line-height: 1; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
   }
-  #gear:active { background: rgba(255,255,255,.2); }
+  #gear:active { background: rgba(244,240,228,.22); }
 
   /* Settings sheet */
   #settings { position: fixed; inset: 0; background: var(--sheet); display: flex; flex-direction: column; z-index: 10; }
@@ -87,11 +90,11 @@
   #settings header {
     display: flex; align-items: center; justify-content: space-between;
     padding: max(10px, env(safe-area-inset-top)) 14px 10px;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--line);
   }
   #settings h1 { font-size: 1.1rem; margin: 0; }
   #close {
-    background: var(--accent); color: #000; border: none; border-radius: 999px;
+    background: var(--accent); color: var(--accent-ink); border: none; border-radius: 999px;
     padding: 8px 16px; font-size: .95rem; font-weight: 700; cursor: pointer;
   }
   #groups { overflow-y: auto; -webkit-overflow-scrolling: touch; flex: 1; padding: 4px 14px max(20px, env(safe-area-inset-bottom)); }
@@ -117,19 +120,19 @@
     padding-top: 9px;
   }
   .face .yds { font-size: .7rem; font-weight: 500; opacity: .6; font-variant-numeric: tabular-nums; }
-  label.chip input:checked + .face { background: var(--accent); color: #000; }
+  label.chip input:checked + .face { background: var(--accent); color: var(--accent-ink); }
   label.chip input:checked + .face .yds { opacity: .75; }
-  label.chip input:focus-visible + .face { border-color: #fff; }
+  label.chip input:focus-visible + .face { border-color: var(--fg); }
 
   .dist { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--row); border-radius: 9px; padding: 8px 10px; }
   .dist .lbl { font-size: .95rem; }
   .dist .lbl small { display: block; color: var(--muted); font-size: .75rem; line-height: 1.2; }
   .dist .ctl { display: flex; align-items: center; gap: 6px; flex: none; }
-  .dist .ctl button { width: 34px; height: 34px; border-radius: 8px; border: 1px solid #555; background: transparent; color: var(--fg); font-size: 1.15rem; line-height: 1; cursor: pointer; font-family: inherit; }
-  .dist .ctl button:active { background: #3a3a3d; }
-  #seven { width: 62px; background: #111; color: var(--fg); border: 1px solid #555; border-radius: 8px; padding: 7px 4px; text-align: center; font-size: 1rem; font-family: inherit; font-variant-numeric: tabular-nums; }
+  .dist .ctl button { width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--fg); font-size: 1.15rem; line-height: 1; cursor: pointer; font-family: inherit; }
+  .dist .ctl button:active { background: var(--line); }
+  #seven { width: 62px; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 4px; text-align: center; font-size: 1rem; font-family: inherit; font-variant-numeric: tabular-nums; }
 
-  #reset { width: 100%; margin: 12px 0 0; padding: 10px; border-radius: 9px; background: transparent; color: var(--fg); border: 1px solid #555; font-size: .95rem; cursor: pointer; font-family: inherit; }
+  #reset { width: 100%; margin: 12px 0 0; padding: 10px; border-radius: 9px; background: transparent; color: var(--fg); border: 1px solid var(--line); font-size: .95rem; cursor: pointer; font-family: inherit; }
   #summary { color: var(--muted); font-size: .85rem; margin: 8px 0 0; text-align: center; }
 </style>
 </head>
