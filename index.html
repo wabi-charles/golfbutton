@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#111111">
+<title>Club Picker</title>
+<style>
+  :root {
+    --bg: #111;
+    --fg: #fff;
+    --muted: #9a9a9a;
+    --red: #e0202a;
+    --red-dark: #9c0f17;
+    --red-shadow: #6b0a10;
+    --sheet: #1c1c1e;
+    --row: #2a2a2d;
+    --accent: #4cd964;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%;
+    background: var(--bg); color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    touch-action: manipulation;
+    -webkit-user-select: none; user-select: none;
+    overscroll-behavior: none;
+  }
+
+  main {
+    height: 100%; min-height: 100vh; min-height: 100dvh;
+    display: flex; flex-direction: column; align-items: center; justify-content: space-evenly;
+    padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  }
+
+  #readout { display: flex; flex-direction: column; align-items: center; min-height: 7rem; justify-content: center; }
+  #club {
+    font-size: clamp(2.4rem, 12vw, 5rem);
+    font-weight: 800; line-height: 1.05; text-align: center;
+    letter-spacing: -0.02em;
+  }
+  #club.placeholder { color: var(--muted); font-weight: 600; font-size: clamp(1.4rem, 6vw, 2.2rem); }
+  #context {
+    margin-top: 10px; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    text-align: center; min-height: 1.4em; font-variant-numeric: tabular-nums;
+  }
+  #context .hole { color: var(--muted); font-size: clamp(.9rem, 3.9vw, 1.15rem); font-weight: 600; }
+  #context .shot { color: var(--fg); font-size: clamp(1.05rem, 4.6vw, 1.4rem); font-weight: 700; }
+
+  #big {
+    --size: min(70vmin, 320px);
+    width: var(--size); height: var(--size);
+    border-radius: 50%; border: none; cursor: pointer;
+    background: radial-gradient(circle at 35% 30%, #ff5a62, var(--red) 55%, var(--red-dark));
+    box-shadow: 0 14px 0 var(--red-shadow), 0 22px 40px rgba(0,0,0,.6);
+    transition: transform .08s ease, box-shadow .08s ease, filter .2s;
+    outline: none;
+    color: #fff; font-weight: 800; text-transform: uppercase; letter-spacing: .06em;
+    font-size: clamp(1.3rem, 6vw, 2rem);
+    text-shadow: 0 2px 6px rgba(0,0,0,.45);
+    font-family: inherit;
+  }
+  #big:active, #big.pressed {
+    transform: translateY(10px);
+    box-shadow: 0 4px 0 var(--red-shadow), 0 8px 20px rgba(0,0,0,.6);
+  }
+  #big:disabled {
+    filter: grayscale(.8) brightness(.5); cursor: not-allowed;
+    transform: none; box-shadow: 0 14px 0 #222;
+  }
+
+  #gear {
+    position: fixed; top: max(12px, env(safe-area-inset-top)); right: 12px;
+    width: 48px; height: 48px; border-radius: 50%;
+    background: rgba(255,255,255,.08); color: var(--fg); border: none;
+    font-size: 26px; line-height: 1; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #gear:active { background: rgba(255,255,255,.2); }
+
+  /* Settings sheet */
+  #settings { position: fixed; inset: 0; background: var(--sheet); display: flex; flex-direction: column; z-index: 10; }
+  #settings[hidden] { display: none; }
+  #settings header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: max(10px, env(safe-area-inset-top)) 14px 10px;
+    border-bottom: 1px solid #333;
+  }
+  #settings h1 { font-size: 1.1rem; margin: 0; }
+  #close {
+    background: var(--accent); color: #000; border: none; border-radius: 999px;
+    padding: 8px 16px; font-size: .95rem; font-weight: 700; cursor: pointer;
+  }
+  #groups { overflow-y: auto; -webkit-overflow-scrolling: touch; flex: 1; padding: 4px 14px max(20px, env(safe-area-inset-bottom)); }
+
+  .group { margin: 12px 0 6px; }
+  .group-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
+  .group-head h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0; }
+  .group-head span button { background: none; border: none; color: var(--accent); font-size: .85rem; cursor: pointer; padding: 2px 6px; }
+
+  .modes { display: flex; flex-direction: column; gap: 5px; }
+  label.mode { display: flex; align-items: center; gap: 10px; background: var(--row); border-radius: 9px; padding: 8px 10px; cursor: pointer; }
+  label.mode input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; flex: none; }
+  label.mode b { font-size: .95rem; display: block; }
+  label.mode small { color: var(--muted); font-size: .78rem; display: block; line-height: 1.2; }
+
+  .chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 6px; }
+  label.chip { position: relative; cursor: pointer; }
+  label.chip input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .face {
+    display: flex; align-items: baseline; justify-content: center; gap: 5px;
+    height: 38px; border-radius: 9px; font-size: .95rem; font-weight: 600;
+    background: var(--row); color: var(--muted); border: 1px solid transparent;
+    padding-top: 9px;
+  }
+  .face .yds { font-size: .7rem; font-weight: 500; opacity: .6; font-variant-numeric: tabular-nums; }
+  label.chip input:checked + .face { background: var(--accent); color: #000; }
+  label.chip input:checked + .face .yds { opacity: .75; }
+  label.chip input:focus-visible + .face { border-color: #fff; }
+
+  .dist { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--row); border-radius: 9px; padding: 8px 10px; }
+  .dist .lbl { font-size: .95rem; }
+  .dist .lbl small { display: block; color: var(--muted); font-size: .75rem; line-height: 1.2; }
+  .dist .ctl { display: flex; align-items: center; gap: 6px; flex: none; }
+  .dist .ctl button { width: 34px; height: 34px; border-radius: 8px; border: 1px solid #555; background: transparent; color: var(--fg); font-size: 1.15rem; line-height: 1; cursor: pointer; font-family: inherit; }
+  .dist .ctl button:active { background: #3a3a3d; }
+  #seven { width: 62px; background: #111; color: var(--fg); border: 1px solid #555; border-radius: 8px; padding: 7px 4px; text-align: center; font-size: 1rem; font-family: inherit; font-variant-numeric: tabular-nums; }
+
+  #reset { width: 100%; margin: 12px 0 0; padding: 10px; border-radius: 9px; background: transparent; color: var(--fg); border: 1px solid #555; font-size: .95rem; cursor: pointer; font-family: inherit; }
+  #summary { color: var(--muted); font-size: .85rem; margin: 8px 0 0; text-align: center; }
+</style>
+</head>
+<body>
+
+<main>
+  <div id="readout">
+    <div id="club" class="placeholder" aria-live="polite">Press for a club</div>
+    <div id="context"></div>
+  </div>
+  <button id="big" aria-label="Next club">Next Club</button>
+  <button id="gear" aria-label="Settings">&#9881;</button>
+</main>
+
+<section id="settings" hidden aria-label="Settings">
+  <header>
+    <h1>Settings</h1>
+    <button id="close">Done</button>
+  </header>
+  <div id="groups"></div>
+</section>
+
+<script>
+(function () {
+  'use strict';
+
+  const STORAGE_KEY = 'golfButton.enabled';
+  const MODE_KEY = 'golfButton.mode';
+  const SEVEN_KEY = 'golfButton.sevenIron';
+
+  // ratio: carry distance as a multiple of the player's 7 iron.
+  const CLUBS = [
+    { id: 'driver', label: 'Driver',  short: 'Dr',  group: 'Woods',   kind: 'driver', ratio: 1.60 },
+    { id: '2w',  label: '2 Wood',  short: '2W',  group: 'Woods',   kind: 'wood',   ratio: 1.53 },
+    { id: '3w',  label: '3 Wood',  short: '3W',  group: 'Woods',   kind: 'wood',   ratio: 1.49 },
+    { id: '4w',  label: '4 Wood',  short: '4W',  group: 'Woods',   kind: 'wood',   ratio: 1.45 },
+    { id: '5w',  label: '5 Wood',  short: '5W',  group: 'Woods',   kind: 'wood',   ratio: 1.41 },
+    { id: '7w',  label: '7 Wood',  short: '7W',  group: 'Woods',   kind: 'wood',   ratio: 1.35 },
+    { id: '9w',  label: '9 Wood',  short: '9W',  group: 'Woods',   kind: 'wood',   ratio: 1.29 },
+    { id: '11w', label: '11 Wood', short: '11W', group: 'Woods',   kind: 'wood',   ratio: 1.23 },
+
+    { id: '2h', label: '2 Hybrid', short: '2H', group: 'Hybrids', kind: 'hybrid', ratio: 1.39 },
+    { id: '3h', label: '3 Hybrid', short: '3H', group: 'Hybrids', kind: 'hybrid', ratio: 1.34 },
+    { id: '4h', label: '4 Hybrid', short: '4H', group: 'Hybrids', kind: 'hybrid', ratio: 1.29 },
+    { id: '5h', label: '5 Hybrid', short: '5H', group: 'Hybrids', kind: 'hybrid', ratio: 1.24 },
+    { id: '6h', label: '6 Hybrid', short: '6H', group: 'Hybrids', kind: 'hybrid', ratio: 1.19 },
+    { id: '7h', label: '7 Hybrid', short: '7H', group: 'Hybrids', kind: 'hybrid', ratio: 1.13 },
+
+    { id: '1i', label: '1 Iron', short: '1i', group: 'Irons', kind: 'iron', ratio: 1.42 },
+    { id: '2i', label: '2 Iron', short: '2i', group: 'Irons', kind: 'iron', ratio: 1.35 },
+    { id: '3i', label: '3 Iron', short: '3i', group: 'Irons', kind: 'iron', ratio: 1.28 },
+    { id: '4i', label: '4 Iron', short: '4i', group: 'Irons', kind: 'iron', ratio: 1.21 },
+    { id: '5i', label: '5 Iron', short: '5i', group: 'Irons', kind: 'iron', ratio: 1.14 },
+    { id: '6i', label: '6 Iron', short: '6i', group: 'Irons', kind: 'iron', ratio: 1.07 },
+    { id: '7i', label: '7 Iron', short: '7i', group: 'Irons', kind: 'iron', ratio: 1.00 },
+    { id: '8i', label: '8 Iron', short: '8i', group: 'Irons', kind: 'iron', ratio: 0.93 },
+    { id: '9i', label: '9 Iron', short: '9i', group: 'Irons', kind: 'iron', ratio: 0.86 },
+
+    { id: 'pw', label: 'Pitching Wedge', short: 'PW',  group: 'Wedges', kind: 'wedge', ratio: 0.80 },
+    { id: '46', label: '46° Wedge', short: '46°', group: 'Wedges', kind: 'wedge', ratio: 0.77 },
+    { id: '48', label: '48° Wedge', short: '48°', group: 'Wedges', kind: 'wedge', ratio: 0.73 },
+    { id: '50', label: '50° Wedge', short: '50°', group: 'Wedges', kind: 'wedge', ratio: 0.70 },
+    { id: '52', label: '52° Wedge', short: '52°', group: 'Wedges', kind: 'wedge', ratio: 0.66 },
+    { id: '54', label: '54° Wedge', short: '54°', group: 'Wedges', kind: 'wedge', ratio: 0.62 },
+    { id: '56', label: '56° Wedge', short: '56°', group: 'Wedges', kind: 'wedge', ratio: 0.58 },
+    { id: '58', label: '58° Wedge', short: '58°', group: 'Wedges', kind: 'wedge', ratio: 0.53 },
+    { id: '60', label: '60° Wedge', short: '60°', group: 'Wedges', kind: 'wedge', ratio: 0.48 },
+    { id: '62', label: '62° Wedge', short: '62°', group: 'Wedges', kind: 'wedge', ratio: 0.43 },
+    { id: '64', label: '64° Wedge', short: '64°', group: 'Wedges', kind: 'wedge', ratio: 0.39 },
+  ];
+
+  const DEFAULT_IDS = ['driver', '3w', '5w', '4h', '5i', '6i', '7i', '8i', '9i', 'pw', '52', '56', '60'];
+  const GROUPS = ['Woods', 'Hybrids', 'Irons', 'Wedges'];
+  const BY_ID = Object.fromEntries(CLUBS.map(c => [c.id, c]));
+  const VALID = new Set(CLUBS.map(c => c.id));
+
+  const REFERENCE_SEVEN = 150;   // the yardages below are drawn for a 150 yard 7 iron
+  const DEFAULT_SEVEN = 150;
+  const MIN_SEVEN = 70, MAX_SEVEN = 220;
+
+  const MODES = [
+    { id: 'random',   name: 'Random',                desc: 'Any club in play, every press. Repeats can happen.' },
+    { id: 'norepeat', name: 'No repeats',            desc: 'Work through every club in play before any comes up again.' },
+    { id: 'course',   name: 'Simulate full course',  desc: 'Play 18 holes by the yardage. Each club is the one the shot calls for.' },
+    { id: 'par3',     name: 'Simulate par 3 course', desc: '18 one-shot holes, 90 to 210 yards, club matched to the number.' },
+  ];
+  const DEFAULT_MODE = 'random';
+
+  // A real par 72 routing, 6,750 yards off a regular men's tee.
+  const COURSE = [
+    { par: 4, yards: 385 }, { par: 5, yards: 520 }, { par: 3, yards: 165 },
+    { par: 4, yards: 410 }, { par: 4, yards: 360 }, { par: 3, yards: 190 },
+    { par: 5, yards: 545 }, { par: 4, yards: 425 }, { par: 4, yards: 400 },
+    { par: 4, yards: 370 }, { par: 3, yards: 145 }, { par: 5, yards: 500 },
+    { par: 4, yards: 440 }, { par: 4, yards: 395 }, { par: 5, yards: 560 },
+    { par: 3, yards: 175 }, { par: 4, yards: 415 }, { par: 4, yards: 350 },
+  ];
+
+  // An 18 hole par 3 course.
+  const PAR3_COURSE = [155, 120, 185, 140, 205, 100, 165, 130, 175, 110, 195, 145, 90, 160, 125, 210, 135, 150];
+
+  // ---- storage ----
+  function loadEnabled() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw === null) return new Set(DEFAULT_IDS);
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return new Set(DEFAULT_IDS);
+      return new Set(arr.filter(id => VALID.has(id)));
+    } catch (e) { return new Set(DEFAULT_IDS); }
+  }
+  function saveEnabled(set) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...set])); } catch (e) {}
+  }
+  function loadMode() {
+    try {
+      const m = localStorage.getItem(MODE_KEY);
+      return MODES.some(x => x.id === m) ? m : DEFAULT_MODE;
+    } catch (e) { return DEFAULT_MODE; }
+  }
+  function saveMode(m) { try { localStorage.setItem(MODE_KEY, m); } catch (e) {} }
+  function loadSeven() {
+    try {
+      const n = parseInt(localStorage.getItem(SEVEN_KEY), 10);
+      return clampSeven(isNaN(n) ? DEFAULT_SEVEN : n);
+    } catch (e) { return DEFAULT_SEVEN; }
+  }
+  function saveSeven(n) { try { localStorage.setItem(SEVEN_KEY, String(n)); } catch (e) {} }
+  function clampSeven(n) { return Math.min(MAX_SEVEN, Math.max(MIN_SEVEN, Math.round(n))); }
+
+  // ---- distances ----
+  let sevenIron = loadSeven();
+  function yardsFor(club) { return Math.round(club.ratio * sevenIron); }
+  function courseScale() { return sevenIron / REFERENCE_SEVEN; }
+  function scaleYards(y) { return Math.max(40, Math.round(y * courseScale() / 5) * 5); }
+
+  function nearestClub(bag, target) {
+    let best = bag[0], bestGap = Infinity;
+    for (const c of bag) {
+      const gap = Math.abs(yardsFor(c) - target);
+      if (gap < bestGap) { best = c; bestGap = gap; }
+    }
+    return best;
+  }
+  // Nobody hits driver off the deck, so it only comes out on the tee.
+  function offTheDeck(bag) {
+    const rest = bag.filter(c => c.kind !== 'driver');
+    return rest.length ? rest : bag;
+  }
+  function longestClub(bag) {
+    return bag.reduce((a, c) => (yardsFor(c) > yardsFor(a) ? c : a), bag[0]);
+  }
+  function teeClub(bag, holeYards) {
+    const driver = bag.find(c => c.kind === 'driver');
+    const bigs = bag.filter(c => c.kind === 'driver' || c.kind === 'wood' || c.kind === 'hybrid');
+    if (driver && holeYards > yardsFor(driver) * 0.95) return driver;   // full length hole
+    if (driver && Math.random() < 0.6) return driver;                    // shorter hole, usually still driver
+    const alt = (bigs.length ? bigs : bag).filter(c => c.kind !== 'driver');
+    if (!alt.length) return driver || longestClub(bag);
+    return nearestClub(alt, holeYards);
+  }
+
+  // ---- helpers ----
+  function randomOf(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+  function holeLine(n, par, yards) { return 'Hole ' + n + ' · Par ' + par + ' · ' + yards + ' yds'; }
+
+  // ---- pickers: next(enabledIds) -> { id, lines: [hole, shot] } ----
+  function makePicker(mode) {
+    if (mode === 'norepeat') {
+      let deck = [], total = 0, last = null;
+      return {
+        next(ids) {
+          if (deck.length === 0) {
+            deck = shuffle(ids);
+            total = ids.length;
+            if (deck.length > 1 && deck[deck.length - 1] === last) deck.unshift(deck.pop());
+          }
+          last = deck.pop();
+          return { id: last, lines: ['Club ' + (total - deck.length) + ' of ' + total] };
+        },
+      };
+    }
+
+    if (mode === 'course') {
+      let hole = -1, remaining = 0, shot = 0, holeYards = 0, needNewHole = true;
+      return {
+        next(ids) {
+          const bag = ids.map(id => BY_ID[id]);
+          const shortest = Math.min(...bag.map(yardsFor));
+          if (needNewHole) {
+            hole = (hole + 1) % COURSE.length;
+            holeYards = scaleYards(COURSE[hole].yards);
+            remaining = holeYards;
+            shot = 0;
+            needNewHole = false;
+          }
+          const par = COURSE[hole].par;
+          shot += 1;
+
+          const club = (shot === 1 && par > 3)
+            ? teeClub(bag, holeYards)
+            : nearestClub(offTheDeck(bag), remaining);
+          const lines = [
+            holeLine(hole + 1, par, holeYards),
+            shot === 1
+              ? 'Shot 1 · Tee shot'
+              : 'Shot ' + shot + ' · ' + remaining + ' yds in',
+          ];
+
+          const carry = yardsFor(club) * (0.88 + Math.random() * 0.18);   // 88% to 106% of the number
+          remaining = Math.max(0, Math.round(remaining - carry));
+          const greenEdge = Math.max(15, Math.round(25 * courseScale()));
+          if (remaining <= greenEdge || remaining < shortest * 0.4 || shot >= 8) needNewHole = true;
+
+          return { id: club.id, lines: lines };
+        },
+      };
+    }
+
+    if (mode === 'par3') {
+      let hole = -1;
+      return {
+        next(ids) {
+          hole = (hole + 1) % PAR3_COURSE.length;
+          const yards = scaleYards(PAR3_COURSE[hole]);
+          const club = nearestClub(ids.map(id => BY_ID[id]), yards);
+          return { id: club.id, lines: [holeLine(hole + 1, 3, yards), 'Shot 1'] };
+        },
+      };
+    }
+
+    return { next(ids) { return { id: randomOf(ids), lines: [] }; } };
+  }
+
+  // ---- state ----
+  let enabled = loadEnabled();
+  let mode = loadMode();
+  let picker = makePicker(mode);
+  let settingsDirty = false;
+
+  const clubEl = document.getElementById('club');
+  const contextEl = document.getElementById('context');
+  const bigBtn = document.getElementById('big');
+  const gearBtn = document.getElementById('gear');
+  const settingsEl = document.getElementById('settings');
+  const closeBtn = document.getElementById('close');
+  const groupsEl = document.getElementById('groups');
+
+  function setReadout(text, lines, placeholder) {
+    clubEl.textContent = text;
+    clubEl.classList.toggle('placeholder', !!placeholder);
+    contextEl.textContent = '';
+    (lines || []).filter(Boolean).forEach((line, i) => {
+      contextEl.append(el('div', { className: i === 0 ? 'hole' : 'shot', textContent: line }));
+    });
+  }
+  function updateMainState() {
+    const empty = enabled.size === 0;
+    bigBtn.disabled = empty;
+    if (empty) setReadout('Pick some clubs in settings', [], true);
+  }
+
+  bigBtn.addEventListener('click', () => {
+    if (enabled.size === 0) { updateMainState(); return; }
+    const shot = picker.next([...enabled]);
+    setReadout(BY_ID[shot.id].label, shot.lines, false);
+    if (navigator.vibrate) { try { navigator.vibrate(30); } catch (e) {} }
+    bigBtn.classList.add('pressed');
+    setTimeout(() => bigBtn.classList.remove('pressed'), 90);
+  });
+
+  // ---- settings ----
+  function el(tag, props, ...children) {
+    const node = document.createElement(tag);
+    Object.assign(node, props || {});
+    node.append(...children);
+    return node;
+  }
+
+  function renderSettings() {
+    groupsEl.innerHTML = '';
+
+    const modeWrap = el('div', { className: 'group' });
+    modeWrap.append(el('div', { className: 'group-head' }, el('h2', { textContent: 'Next club' })));
+    const modes = el('div', { className: 'modes' });
+    for (const m of MODES) {
+      const input = el('input', { type: 'radio', name: 'mode', value: m.id, checked: mode === m.id });
+      input.addEventListener('change', () => {
+        if (!input.checked) return;
+        mode = m.id; saveMode(mode); settingsDirty = true;
+      });
+      modes.append(el('label', { className: 'mode' }, input,
+        el('div', {}, el('b', { textContent: m.name }), el('small', { textContent: m.desc }))));
+    }
+    modeWrap.append(modes);
+    groupsEl.append(modeWrap);
+
+    for (const group of GROUPS) {
+      const wrap = el('div', { className: 'group' });
+      const allBtn = el('button', { type: 'button', textContent: 'All' });
+      const noneBtn = el('button', { type: 'button', textContent: 'None' });
+      wrap.append(el('div', { className: 'group-head' },
+        el('h2', { textContent: group }), el('span', {}, allBtn, noneBtn)));
+
+      const chips = el('div', { className: 'chips' });
+      const inputs = [];
+      for (const club of CLUBS.filter(c => c.group === group)) {
+        const cb = el('input', { type: 'checkbox', checked: enabled.has(club.id) });
+        cb.dataset.id = club.id;
+        cb.addEventListener('change', () => {
+          if (cb.checked) enabled.add(club.id); else enabled.delete(club.id);
+          onEnabledChanged();
+        });
+        const yds = el('span', { className: 'yds', textContent: String(yardsFor(club)) });
+        yds.dataset.yardsFor = club.id;
+        chips.append(el('label', { className: 'chip', title: club.label }, cb,
+          el('span', { className: 'face' }, el('span', { textContent: club.short }), yds)));
+        inputs.push(cb);
+      }
+      wrap.append(chips);
+
+      allBtn.addEventListener('click', () => {
+        inputs.forEach(cb => { cb.checked = true; enabled.add(cb.dataset.id); });
+        onEnabledChanged();
+      });
+      noneBtn.addEventListener('click', () => {
+        inputs.forEach(cb => { cb.checked = false; enabled.delete(cb.dataset.id); });
+        onEnabledChanged();
+      });
+      groupsEl.append(wrap);
+    }
+
+    // Distance tuning, at the bottom.
+    const distWrap = el('div', { className: 'group' });
+    distWrap.append(el('div', { className: 'group-head' }, el('h2', { textContent: 'Distances' })));
+    const minus = el('button', { type: 'button', textContent: '−', ariaLabel: 'Less' });
+    const plus = el('button', { type: 'button', textContent: '+', ariaLabel: 'More' });
+    const input = el('input', { id: 'seven', type: 'number', inputMode: 'numeric', value: String(sevenIron),
+                                min: String(MIN_SEVEN), max: String(MAX_SEVEN), step: '5' });
+    const label = el('div', { className: 'lbl' }, el('span', { textContent: '7 iron carry' }),
+      el('small', { textContent: 'Every other club and the course scale from this.' }));
+    distWrap.append(el('div', { className: 'dist' }, label,
+      el('div', { className: 'ctl' }, minus, input, el('span', { className: 'yds', textContent: 'yds' }), plus)));
+
+    function applySeven(n) {
+      const v = clampSeven(n);
+      sevenIron = v;
+      input.value = String(v);
+      saveSeven(v);
+      refreshYardages();
+      settingsDirty = true;
+    }
+    minus.addEventListener('click', () => applySeven(sevenIron - 5));
+    plus.addEventListener('click', () => applySeven(sevenIron + 5));
+    input.addEventListener('change', () => applySeven(parseInt(input.value, 10) || DEFAULT_SEVEN));
+    groupsEl.append(distWrap);
+
+    const reset = el('button', { id: 'reset', type: 'button', textContent: 'Reset to default bag' });
+    reset.addEventListener('click', () => {
+      enabled = new Set(DEFAULT_IDS);
+      syncCheckboxes();
+      onEnabledChanged();
+    });
+    groupsEl.append(reset, el('p', { id: 'summary' }));
+    updateSummary();
+  }
+
+  function refreshYardages() {
+    groupsEl.querySelectorAll('[data-yards-for]').forEach(node => {
+      node.textContent = String(yardsFor(BY_ID[node.dataset.yardsFor]));
+    });
+  }
+  function onEnabledChanged() { saveEnabled(enabled); settingsDirty = true; updateSummary(); }
+  function syncCheckboxes() {
+    groupsEl.querySelectorAll('input[type=checkbox]').forEach(cb => { cb.checked = enabled.has(cb.dataset.id); });
+  }
+  function updateSummary() {
+    const s = document.getElementById('summary');
+    if (s) s.textContent = enabled.size === 1 ? '1 club in play' : enabled.size + ' clubs in play';
+  }
+
+  gearBtn.addEventListener('click', () => {
+    syncCheckboxes(); updateSummary(); settingsDirty = false;
+    settingsEl.hidden = false; groupsEl.scrollTop = 0;
+  });
+  closeBtn.addEventListener('click', () => {
+    settingsEl.hidden = true;
+    if (settingsDirty) {
+      picker = makePicker(mode);
+      if (enabled.size > 0) setReadout('Press for a club', [], true);
+    }
+    updateMainState();
+  });
+
+  renderSettings();
+  updateMainState();
+})();
+</script>
+</body>
+</html>
