@@ -7,6 +7,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#10231a">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" href="/icon-192.png" type="image/png">
 <title>Club Picker</title>
 <style>
   :root {
@@ -536,6 +539,7 @@
   let picker = makePicker(mode);
   let settingsDirty = false;
 
+  const mainEl = document.querySelector('main');
   const cardEl = document.getElementById('card');
   const clubEl = document.getElementById('club');
   const contextEl = document.getElementById('context');
@@ -585,7 +589,20 @@
     } catch (e) {}
   }
 
-  bigBtn.addEventListener('click', () => {
+  // ---- keep the screen on between shots ----
+  let wakeLock = null;
+  function keepAwake() {
+    if (!('wakeLock' in navigator) || wakeLock) return;
+    navigator.wakeLock.request('screen').then((lock) => {
+      wakeLock = lock;
+      lock.addEventListener('release', () => { wakeLock = null; });
+    }).catch(() => {});   // denied, low battery, unsupported: not worth mentioning
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') keepAwake();
+  });
+
+  function advance() {
     if (enabled.size === 0) { updateMainState(); return; }
     const shot = picker.next([...enabled]);
     track('press/' + mode);
@@ -593,6 +610,15 @@
     if (navigator.vibrate) { try { navigator.vibrate(30); } catch (e) {} }
     bigBtn.classList.add('pressed');
     setTimeout(() => bigBtn.classList.remove('pressed'), 90);
+    keepAwake();          // the first press is a user gesture, which is when this is allowed
+  }
+
+  // Anywhere on the screen advances, so you can hit it through a glove or without
+  // looking down. The gear is the one thing that does something else. The button
+  // still fires this by bubbling, so a press counts exactly once.
+  mainEl.addEventListener('click', (e) => {
+    if (e.target.closest('#gear')) return;
+    advance();
   });
 
   // ---- settings ----
@@ -767,6 +793,15 @@
   updateButtonLabel();
   updateMainState();
 })();
+</script>
+
+<script>
+  // Offline support. Ranges have bad signal; the app should not need any.
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    });
+  }
 </script>
 
 <!-- GoatCounter: privacy friendly, no cookies. Skips localhost automatically. -->

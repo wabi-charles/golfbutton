@@ -26,3 +26,13 @@ carry so you can sanity-check the gapping.
 
 Every wood (Driver, 2, 3, 4, 5, 7, 9, 11), hybrid (2-7), iron (1-9), and wedge
 (PW, 46-64 degrees). Default bag: Driver, 3W, 5W, 4H, 5-9 iron, PW, 52, 56, 60.
+
+## Installing it
+
+The site is a progressive web app. On a phone, open it and use Add to Home
+Screen: it gets its own icon, opens without browser chrome, and works with no
+signal. The page is cached by `sw.js`, network-first so a new deploy still
+reaches you on the next load that has a connection.
+
+The screen stays awake while the app is open, and tapping anywhere on the
+main screen advances, not just the button.
